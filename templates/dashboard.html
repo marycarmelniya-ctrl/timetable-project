@@ -3,7 +3,27 @@
 <head>
     <title>Timetable Dashboard</title>
 
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
+        /* TOAST CSS */
+        #toast-container {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 1000;
+        }
+        .toast {
+            background: #2ecc71;
+            color: white;
+            padding: 15px 25px;
+            border-radius: 8px;
+            margin-top: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        .toast.show { opacity: 1; }
+
         body {
             margin: 0;
             font-family: 'Segoe UI', Arial;
@@ -96,8 +116,10 @@
     <a onclick="getClasses()">🏫 Classes</a>
     <a onclick="getRooms()">🚪 Rooms</a>
     <a onclick="getLessons()">📅 Timetable</a>
+    <a onclick="getAnalytics()">📈 Analytics</a>
 </div>
 
+<div id="toast-container"></div>
 <div class="main">
 
     <h1>Timetable Management System</h1>
@@ -113,18 +135,16 @@
 
     <button class="btn" onclick="viewTeacherTimetable()">View My Timetable</button>
 
-    <!-- 🔥 RELIEF SYSTEM (ADDED) -->
+    <!-- 🔥 SMART RELIEF & DIGITAL HANDOVER -->
     <hr>
-    <h3>Assign Relief</h3>
-    <input id="reliefTeacher" placeholder="Teacher ID">
-    <input id="reliefDay" placeholder="Day (Monday)">
-    <input id="reliefPeriod" placeholder="Period (1)">
-    <button class="btn" onclick="assignRelief()">Assign Relief</button>
-
-    <!-- 🔥 DIGITAL HANDOVER (ADDED) -->
-    <h3>Teacher Notes</h3>
-    <textarea id="handoverNote" rows="3" cols="40" placeholder="Enter notes..."></textarea><br>
-    <button class="btn" onclick="saveNote()">Save Note</button>
+    <h3>Report Absence & Request Relief</h3>
+    <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+        <input id="reliefTeacher" placeholder="Absent Teacher ID">
+        <input id="reliefDay" placeholder="Day (e.g. Monday)">
+        <input id="reliefPeriod" placeholder="Period (e.g. 1)">
+    </div>
+    <textarea id="handoverNote" rows="3" style="width: 100%; max-width: 400px; margin-bottom: 10px;" placeholder="Digital Handover: Enter lesson instructions or links to study materials..."></textarea><br>
+    <button class="btn" onclick="assignRelief()">Assign Relief Teacher</button>
     <hr>
 
     <div class="cards">
@@ -295,34 +315,79 @@ document.addEventListener("DOMContentLoaded", function () {
         });
     }
 
-    // 🔥 RELIEF FUNCTION
+    // 🔥 SMART RELIEF FUNCTION & DIGITAL HANDOVER
     function assignRelief() {
         let teacher_id = document.getElementById("reliefTeacher").value;
         let day = document.getElementById("reliefDay").value;
         let period = document.getElementById("reliefPeriod").value;
+        let note = document.getElementById("handoverNote").value;
 
         fetch("/assign-relief", {
             method: "POST",
             headers: {"Content-Type": "application/json"},
-            body: JSON.stringify({ teacher_id, day, period })
+            body: JSON.stringify({ teacher_id, day, period, note })
         })
         .then(res => res.json())
         .then(data => {
-            alert(data.message || data.error);
-            getLessons();
+            if (data.error) {
+                alert(data.error);
+            } else {
+                showToast(data.message);
+                document.getElementById("handoverNote").value = "";
+                getLessons();
+            }
         });
     }
 
-    // 🔥 DIGITAL HANDOVER
-    function saveNote() {
-        let note = document.getElementById("handoverNote").value;
-        localStorage.setItem("handoverNote", note);
-        alert("Note saved!");
+    function showToast(message) {
+        let container = document.getElementById("toast-container");
+        let toast = document.createElement("div");
+        toast.className = "toast show";
+        toast.innerText = "🔔 " + message;
+        container.appendChild(toast);
+        setTimeout(() => {
+            toast.classList.remove("show");
+            setTimeout(() => toast.remove(), 300);
+        }, 5000);
     }
 
-    function loadNote() {
-        let note = localStorage.getItem("handoverNote");
-        if (note) document.getElementById("handoverNote").value = note;
+    // 🔥 WORKLOAD ANALYTICS
+    function getAnalytics() {
+        displayArea.innerHTML = "<h2>Teacher Workload Analytics</h2><canvas id='analyticsChart'></canvas>";
+        fetch("/api/analytics")
+        .then(res => res.json())
+        .then(data => {
+            let labels = data.map(t => t.name);
+            let lessonData = data.map(t => t.total_lessons);
+            let reliefData = data.map(t => t.total_reliefs);
+
+            let ctx = document.getElementById("analyticsChart").getContext("2d");
+            new Chart(ctx, {
+                type: "bar",
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: "Regular Lessons",
+                            backgroundColor: "#3498db",
+                            data: lessonData
+                        },
+                        {
+                            label: "Relief Duties",
+                            backgroundColor: "#e74c3c",
+                            data: reliefData
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: { beginAtZero: true, stacked: true },
+                        x: { stacked: true }
+                    }
+                }
+            });
+        });
     }
 
     // 🔥 expose functions
@@ -334,11 +399,10 @@ document.addEventListener("DOMContentLoaded", function () {
     window.getLessons = getLessons;
     window.viewTeacherTimetable = viewTeacherTimetable;
     window.assignRelief = assignRelief;
-    window.saveNote = saveNote;
+    window.getAnalytics = getAnalytics;
 
     loadCounts();
     loadTeacherDropdown();
-    loadNote();
 
     // 🔥 REAL-TIME
     setInterval(getLessons, 5000);

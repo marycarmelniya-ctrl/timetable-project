@@ -223,16 +223,16 @@ def generate_timetable():
 @app.route("/assign-relief", methods=["POST"])
 def assign_relief():
     data = request.json
-
-    teacher_id = data["teacher_id"]
+    teacher_id = int(data["teacher_id"])
     day = data["day"]
-    period = data["period"]
+    period = int(data["period"])
+    note = data.get("note", "")
 
     conn = sqlite3.connect("database.db")
     cursor = conn.cursor()
 
     cursor.execute("""
-    SELECT id FROM lessons
+    SELECT id, class_id FROM lessons
     WHERE teacher_id=? AND day=? AND period=?
     """, (teacher_id, day, period))
 
@@ -242,28 +242,40 @@ def assign_relief():
         return jsonify({"error": "No lesson found"})
 
     lesson_id = lesson[0]
+    class_id = lesson[1]
 
-    cursor.execute("SELECT id FROM teachers")
+    # Get department of absent teacher
+    cursor.execute("SELECT department FROM teachers WHERE id=?", (teacher_id,))
+    res = cursor.fetchone()
+    absent_teacher_dept = res[0] if res else ""
+
+    cursor.execute("SELECT id, department, max_relief_per_week FROM teachers")
     teachers = cursor.fetchall()
+
+    cursor.execute("""
+    SELECT replacement_teacher_id, COUNT(*) FROM relief_assignments
+    GROUP BY replacement_teacher_id
+    """)
+    relief_counts = {row[0]: row[1] for row in cursor.fetchall()}
 
     cursor.execute("""
     SELECT teacher_id FROM lessons
     WHERE day=? AND period=?
     """, (day, period))
-
     busy = [t[0] for t in cursor.fetchall()]
 
     cursor.execute("""
     SELECT teacher_id FROM blocked_slots
     WHERE day=? AND period=?
     """, (day, period))
-
     blocked = [t[0] for t in cursor.fetchall()]
 
-    available = []
+    available_candidates = []
 
     for t in teachers:
         tid = t[0]
+        tdept = t[1]
+        tmax = t[2] or 5 # Default max 5 reliefs per week
 
         if tid == teacher_id:
             continue
@@ -272,12 +284,30 @@ def assign_relief():
         if tid in blocked:
             continue
 
-        available.append(tid)
+        # Workload cap check
+        current_relief = relief_counts.get(tid, 0)
+        if current_relief >= tmax:
+            continue
 
-    if not available:
+        # Score calculation for sorting
+        score = 0
+        if tdept == absent_teacher_dept:
+            score += 10 # High priority for same department
+        
+        # Fairness rule: lower current_relief is better
+        score -= current_relief 
+
+        available_candidates.append({
+            "id": tid,
+            "score": score
+        })
+
+    if not available_candidates:
         return jsonify({"error": "No relief teacher available"})
 
-    relief_teacher = random.choice(available)
+    # Sort by score descending
+    available_candidates.sort(key=lambda x: x["score"], reverse=True)
+    relief_teacher = available_candidates[0]["id"]
 
     cursor.execute("""
     UPDATE lessons
@@ -285,13 +315,49 @@ def assign_relief():
     WHERE id=?
     """, (relief_teacher, lesson_id))
 
+    # Log assignment and digital handover note
+    cursor.execute("""
+    INSERT INTO relief_assignments (absent_teacher_id, replacement_teacher_id, class_id, day, period, notes)
+    VALUES (?, ?, ?, ?, ?, ?)
+    """, (teacher_id, relief_teacher, class_id, day, period, note))
+
     conn.commit()
     conn.close()
 
     return jsonify({
-        "message": "Relief assigned",
+        "message": f"Relief assigned successfully! Teacher ID {relief_teacher} has taken over.",
         "new_teacher": relief_teacher
     })
+
+
+# -----------------------------
+# 📊 WORKLOAD ANALYTICS (ADDED)
+# -----------------------------
+@app.route("/api/analytics")
+def get_analytics():
+    conn = sqlite3.connect("database.db")
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT id, name FROM teachers")
+    teachers = {t[0]: t[1] for t in cursor.fetchall()}
+
+    cursor.execute("SELECT teacher_id, COUNT(*) FROM lessons GROUP BY teacher_id")
+    lesson_counts = {row[0]: row[1] for row in cursor.fetchall()}
+
+    cursor.execute("SELECT replacement_teacher_id, COUNT(*) FROM relief_assignments GROUP BY replacement_teacher_id")
+    relief_counts = {row[0]: row[1] for row in cursor.fetchall()}
+
+    data = []
+    for tid, name in teachers.items():
+        data.append({
+            "id": tid,
+            "name": name,
+            "total_lessons": lesson_counts.get(tid, 0),
+            "total_reliefs": relief_counts.get(tid, 0)
+        })
+
+    conn.close()
+    return jsonify(data)
 
 
 # -----------------------------
