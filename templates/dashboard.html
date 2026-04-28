@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Timetable Dashboard</title>
+
+    <style>
+        body {
+            margin: 0;
+            font-family: 'Segoe UI', Arial;
+            display: flex;
+        }
+
+        .sidebar {
+            width: 230px;
+            height: 100vh;
+            background: linear-gradient(180deg, #2c3e50, #1a252f);
+            color: white;
+            padding: 20px;
+        }
+
+        .sidebar h2 { text-align: center; }
+
+        .sidebar a {
+            display: block;
+            padding: 12px;
+            margin: 5px 0;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+
+        .sidebar a:hover { background: #34495e; }
+
+        .main {
+            flex: 1;
+            background: #f4f6f8;
+            padding: 25px;
+        }
+
+        .cards {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+        }
+
+        .card {
+            width: 220px;
+            padding: 20px;
+            border-radius: 12px;
+            color: white;
+            cursor: pointer;
+        }
+
+        .blue { background: #3498db; }
+        .green { background: #2ecc71; }
+        .orange { background: #f39c12; }
+        .red { background: #e74c3c; }
+
+        .btn {
+            padding: 12px 20px;
+            background: #2c3e50;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            margin-bottom: 10px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+            margin-top: 10px;
+        }
+
+        th {
+            background: #2c3e50;
+            color: white;
+        }
+
+        td, th {
+            padding: 10px;
+            text-align: center;
+            border: 1px solid #ddd;
+        }
+
+        #displayArea { margin-top: 20px; }
+    </style>
+</head>
+
+<body>
+
+<div class="sidebar">
+    <h2>📊 Dashboard</h2>
+    <a onclick="getTeachers()">👨‍🏫 Teachers</a>
+    <a onclick="getClasses()">🏫 Classes</a>
+    <a onclick="getRooms()">🚪 Rooms</a>
+    <a onclick="getLessons()">📅 Timetable</a>
+</div>
+
+<div class="main">
+
+    <h1>Timetable Management System</h1>
+
+    <button class="btn" onclick="generateTimetable()">⚡ Generate Timetable</button>
+    <button class="btn" onclick="downloadTimetable()">Download Timetable</button>
+
+    <br><br>
+
+    <select id="teacherSelect">
+        <option value="">Select Teacher</option>
+    </select>
+
+    <button class="btn" onclick="viewTeacherTimetable()">View My Timetable</button>
+
+    <!-- 🔥 RELIEF SYSTEM (ADDED) -->
+    <hr>
+    <h3>Assign Relief</h3>
+    <input id="reliefTeacher" placeholder="Teacher ID">
+    <input id="reliefDay" placeholder="Day (Monday)">
+    <input id="reliefPeriod" placeholder="Period (1)">
+    <button class="btn" onclick="assignRelief()">Assign Relief</button>
+
+    <!-- 🔥 DIGITAL HANDOVER (ADDED) -->
+    <h3>Teacher Notes</h3>
+    <textarea id="handoverNote" rows="3" cols="40" placeholder="Enter notes..."></textarea><br>
+    <button class="btn" onclick="saveNote()">Save Note</button>
+    <hr>
+
+    <div class="cards">
+        <div class="card blue" onclick="getTeachers()">
+            <h3>Teachers</h3>
+            <p id="teacherCount">0</p>
+        </div>
+
+        <div class="card green" onclick="getClasses()">
+            <h3>Classes</h3>
+            <p id="classCount">0</p>
+        </div>
+
+        <div class="card orange" onclick="getRooms()">
+            <h3>Rooms</h3>
+            <p id="roomCount">0</p>
+        </div>
+
+        <div class="card red" onclick="getLessons()">
+            <h3>Timetable</h3>
+            <p id="lessonCount">0</p>
+        </div>
+    </div>
+
+    <div id="displayArea">
+        <h3>Select an option</h3>
+    </div>
+
+</div>
+
+<script>
+
+document.addEventListener("DOMContentLoaded", function () {
+
+    const displayArea = document.getElementById("displayArea");
+    const teacherCount = document.getElementById("teacherCount");
+    const classCount = document.getElementById("classCount");
+    const roomCount = document.getElementById("roomCount");
+    const lessonCount = document.getElementById("lessonCount");
+
+    function loadCounts() {
+        fetch("/teachers").then(res => res.json()).then(data => teacherCount.innerText = data.length);
+        fetch("/classes").then(res => res.json()).then(data => classCount.innerText = data.length);
+        fetch("/rooms").then(res => res.json()).then(data => roomCount.innerText = data.length);
+        fetch("/lessons").then(res => res.json()).then(data => lessonCount.innerText = data.length);
+    }
+
+    function generateTimetable() {
+        fetch("/generate-timetable", { method: "POST" })
+        .then(res => res.json())
+        .then(data => {
+            alert(data.message);
+            loadCounts();
+        });
+    }
+
+    function downloadTimetable() {
+        let content = displayArea.innerHTML;
+        let blob = new Blob([`<html><body>${content}</body></html>`], { type: "text/html" });
+        let a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = "timetable.html";
+        a.click();
+    }
+
+    function loadTeacherDropdown() {
+        fetch("/teachers")
+        .then(res => res.json())
+        .then(data => {
+            let select = document.getElementById("teacherSelect");
+            select.innerHTML = '<option value="">Select Teacher</option>';
+            data.forEach(t => {
+                let option = document.createElement("option");
+                option.value = t.id;
+                option.text = t.name;
+                select.appendChild(option);
+            });
+        });
+    }
+
+    function viewTeacherTimetable() {
+        let teacherId = document.getElementById("teacherSelect").value;
+        fetch("/lessons")
+        .then(res => res.json())
+        .then(data => {
+            let filtered = data.filter(l => l.teacher_id == teacherId);
+            let html = "<h2>My Timetable</h2><table><tr><th>Day</th><th>Period</th><th>Subject</th></tr>";
+            filtered.forEach(l => {
+                html += `<tr><td>${l.day}</td><td>${l.period}</td><td>${l.subject}</td></tr>`;
+            });
+            html += "</table>";
+            displayArea.innerHTML = html;
+        });
+    }
+
+    function getTeachers() {
+        fetch("/teachers")
+        .then(res => res.json())
+        .then(data => {
+            let html = "<h2>Teachers</h2><table><tr><th>Name</th><th>Department</th></tr>";
+            data.forEach(t => {
+                html += `<tr><td>${t.name}</td><td>${t.department}</td></tr>`;
+            });
+            html += "</table>";
+            displayArea.innerHTML = html;
+        });
+    }
+
+    function getClasses() {
+        fetch("/classes")
+        .then(res => res.json())
+        .then(data => {
+            let html = "<h2>Classes</h2><table><tr><th>Class</th><th>Section</th></tr>";
+            data.forEach(c => {
+                html += `<tr><td>${c.class_name}</td><td>${c.section}</td></tr>`;
+            });
+            html += "</table>";
+            displayArea.innerHTML = html;
+        });
+    }
+
+    function getRooms() {
+        fetch("/rooms")
+        .then(res => res.json())
+        .then(data => {
+            let html = "<h2>Rooms</h2><table><tr><th>Room</th><th>Capacity</th></tr>";
+            data.forEach(r => {
+                html += `<tr><td>${r.room_number}</td><td>${r.capacity}</td></tr>`;
+            });
+            html += "</table>";
+            displayArea.innerHTML = html;
+        });
+    }
+
+    function getLessons() {
+        fetch("/lessons")
+        .then(res => res.json())
+        .then(data => {
+
+            let days = ["Monday","Tuesday","Wednesday","Thursday","Friday"];
+            let periods = [1,2,3,4,5];
+
+            let classes = [...new Set(data.map(l => l.class_id))];
+            let html = "<h2>Weekly Timetable</h2>";
+
+            classes.forEach(classId => {
+                html += `<h3>Class ${classId}</h3><table><tr><th>Day</th>`;
+                periods.forEach(p => html += `<th>P${p}</th>`);
+                html += "</tr>";
+
+                days.forEach(day => {
+                    html += `<tr><td>${day}</td>`;
+                    periods.forEach(p => {
+                        let lesson = data.find(l =>
+                            l.day === day &&
+                            l.period === p &&
+                            l.class_id === classId
+                        );
+                        html += `<td>${lesson ? lesson.subject : "-"}</td>`;
+                    });
+                    html += "</tr>";
+                });
+
+                html += "</table><br>";
+            });
+
+            displayArea.innerHTML = html;
+        });
+    }
+
+    // 🔥 RELIEF FUNCTION
+    function assignRelief() {
+        let teacher_id = document.getElementById("reliefTeacher").value;
+        let day = document.getElementById("reliefDay").value;
+        let period = document.getElementById("reliefPeriod").value;
+
+        fetch("/assign-relief", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({ teacher_id, day, period })
+        })
+        .then(res => res.json())
+        .then(data => {
+            alert(data.message || data.error);
+            getLessons();
+        });
+    }
+
+    // 🔥 DIGITAL HANDOVER
+    function saveNote() {
+        let note = document.getElementById("handoverNote").value;
+        localStorage.setItem("handoverNote", note);
+        alert("Note saved!");
+    }
+
+    function loadNote() {
+        let note = localStorage.getItem("handoverNote");
+        if (note) document.getElementById("handoverNote").value = note;
+    }
+
+    // 🔥 expose functions
+    window.generateTimetable = generateTimetable;
+    window.downloadTimetable = downloadTimetable;
+    window.getTeachers = getTeachers;
+    window.getClasses = getClasses;
+    window.getRooms = getRooms;
+    window.getLessons = getLessons;
+    window.viewTeacherTimetable = viewTeacherTimetable;
+    window.assignRelief = assignRelief;
+    window.saveNote = saveNote;
+
+    loadCounts();
+    loadTeacherDropdown();
+    loadNote();
+
+    // 🔥 REAL-TIME
+    setInterval(getLessons, 5000);
+
+});
+
+</script>
+
+</body>
+</html>
