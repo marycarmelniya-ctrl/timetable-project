@@ -287,9 +287,18 @@
     <div class="glass-panel">
         <h3>Report Absence & Request Relief</h3>
         <div class="flex-row">
-            <input id="reliefTeacher" placeholder="Absent Teacher ID">
-            <input id="reliefDay" placeholder="Day (e.g. Monday)">
-            <input id="reliefPeriod" placeholder="Period (e.g. 1)">
+            <select id="reliefTeacher" style="max-width: 250px;">
+                <option value="">Select Absent Teacher</option>
+            </select>
+            <select id="reliefDay" style="max-width: 200px;">
+                <option value="">Select Day</option>
+                <option value="Monday">Monday</option>
+                <option value="Tuesday">Tuesday</option>
+                <option value="Wednesday">Wednesday</option>
+                <option value="Thursday">Thursday</option>
+                <option value="Friday">Friday</option>
+            </select>
+            <input type="number" id="reliefPeriod" placeholder="Period (1-5)" min="1" max="5" style="max-width: 150px;">
         </div>
         <textarea id="handoverNote" rows="3" placeholder="Digital Handover: Enter lesson instructions or links to study materials..."></textarea>
         <button class="btn" style="margin-top: 16px; background-color: var(--secondary);" onclick="assignRelief()">Assign Relief Teacher</button>
@@ -363,13 +372,20 @@ document.addEventListener("DOMContentLoaded", function () {
         fetch("/teachers")
         .then(res => res.json())
         .then(data => {
-            let select = document.getElementById("teacherSelect");
-            select.innerHTML = '<option value="">Select Teacher</option>';
+            let select1 = document.getElementById("teacherSelect");
+            let select2 = document.getElementById("reliefTeacher");
+            select1.innerHTML = '<option value="">Select Teacher</option>';
+            select2.innerHTML = '<option value="">Select Absent Teacher</option>';
             data.forEach(t => {
-                let option = document.createElement("option");
-                option.value = t.id;
-                option.text = t.name;
-                select.appendChild(option);
+                let option1 = document.createElement("option");
+                option1.value = t.id;
+                option1.text = t.name;
+                select1.appendChild(option1);
+                
+                let option2 = document.createElement("option");
+                option2.value = t.id;
+                option2.text = t.name;
+                select2.appendChild(option2);
             });
         });
     }

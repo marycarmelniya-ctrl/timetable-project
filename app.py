@@ -223,9 +223,13 @@ def generate_timetable():
 @app.route("/assign-relief", methods=["POST"])
 def assign_relief():
     data = request.json
-    teacher_id = int(data["teacher_id"])
-    day = data["day"]
-    period = int(data["period"])
+    try:
+        teacher_id = int(str(data["teacher_id"]).strip())
+        day = str(data["day"]).strip().capitalize()
+        period = int(str(data["period"]).strip())
+    except ValueError:
+        return jsonify({"error": "Invalid ID or Period format"})
+        
     note = data.get("note", "")
 
     conn = sqlite3.connect("database.db")
