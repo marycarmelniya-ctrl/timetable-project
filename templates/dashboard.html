@@ -326,6 +326,7 @@
 <script>
 
 document.addEventListener("DOMContentLoaded", function () {
+    let currentView = "";
 
     const displayArea = document.getElementById("displayArea");
     const teacherCount = document.getElementById("teacherCount");
@@ -374,6 +375,7 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
     function viewTeacherTimetable() {
+        currentView = "teacherTimetable";
         let teacherId = document.getElementById("teacherSelect").value;
         fetch("/lessons")
         .then(res => res.json())
@@ -389,6 +391,7 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
     function getTeachers() {
+        currentView = "teachers";
         fetch("/teachers")
         .then(res => res.json())
         .then(data => {
@@ -402,6 +405,7 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
     function getClasses() {
+        currentView = "classes";
         fetch("/classes")
         .then(res => res.json())
         .then(data => {
@@ -415,6 +419,7 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
     function getRooms() {
+        currentView = "rooms";
         fetch("/rooms")
         .then(res => res.json())
         .then(data => {
@@ -428,6 +433,7 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
     function getLessons() {
+        currentView = "lessons";
         fetch("/lessons")
         .then(res => res.json())
         .then(data => {
@@ -501,6 +507,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
     // 🔥 WORKLOAD ANALYTICS
     function getAnalytics() {
+        currentView = "analytics";
         displayArea.innerHTML = "<h2>Teacher Workload Analytics</h2><canvas id='analyticsChart'></canvas>";
         fetch("/api/analytics")
         .then(res => res.json())
@@ -553,7 +560,11 @@ document.addEventListener("DOMContentLoaded", function () {
     loadTeacherDropdown();
 
     // 🔥 REAL-TIME
-    setInterval(getLessons, 5000);
+    setInterval(() => {
+        if (currentView === "lessons") {
+            getLessons();
+        }
+    }, 5000);
 
 });
 
